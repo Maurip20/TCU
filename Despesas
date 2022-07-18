@@ -1,0 +1,29 @@
+let
+    Fonte = SharePoint.Files(CaminhoSite, [ApiVersion = 15]),
+    #"Linhas Filtradas" = Table.SelectRows(Fonte, each [Folder Path] = CaminhoArquivo),
+    #"DESPESAS xlsx_https://sescsp sharepoint com/sites/MCI-MonitoramentoeControledeIndicadores/Shared Documents/TCU/" = #"Linhas Filtradas"{[Name="DESPESAS.xlsx",#"Folder Path"="https://sescsp.sharepoint.com/sites/MCI-MonitoramentoeControledeIndicadores/Shared Documents/TCU/"]}[Content],
+    #"Pasta de Trabalho Importada do Excel" = Excel.Workbook(#"DESPESAS xlsx_https://sescsp sharepoint com/sites/MCI-MonitoramentoeControledeIndicadores/Shared Documents/TCU/"),
+    Tabela1_Table = #"Pasta de Trabalho Importada do Excel"{[Item="Tabela1",Kind="Table"]}[Data],
+    #"Tipo Alterado" = Table.TransformColumnTypes(Tabela1_Table,{{"ORCADO", type text}, {"RETIFICADO", type text}, {" SUPLEMENTADO ", type text}, {"TRANSPOSTO", type text}, {"   REALIZADO   ", type text}, {"COD_CONTA", type text}}),
+    #"Personalização Adicionada" = Table.AddColumn(#"Tipo Alterado", "COD_CONTA_COR", each if List.Count(Text.Split([COD_CONTA], ".")) >= 5 then "OK" else "CORRIGIR"),
+    #"Personalização Adicionada1" = Table.AddColumn(#"Personalização Adicionada", "ORCADO_COR", each if Text.Contains([ORCADO], "R$") = Logical.FromText("true") then "CORRIGIR_R$" else 
+
+if Text.Length(Text.AfterDelimiter([ORCADO], ",")) = 2 then "OK" else if Text.Length(Text.AfterDelimiter([ORCADO], ",")) = 0 then "OK" else "CORRIGIR_DEC"),
+    #"Personalização Adicionada2" = Table.AddColumn(#"Personalização Adicionada1", "RETIFICADO_COR", each if Text.Contains([RETIFICADO], "R$") = Logical.FromText("true") then "CORRIGIR_R$" else 
+
+if Text.Length(Text.AfterDelimiter([RETIFICADO], ",")) = 2 then "OK" else if Text.Length(Text.AfterDelimiter([RETIFICADO], ",")) = 0 then "OK" else "CORRIGIR_DEC"),
+    #"Personalização Adicionada3" = Table.AddColumn(#"Personalização Adicionada2", "SUPLEMENTADO_COR", each if Text.Contains([#" SUPLEMENTADO "], "R$") = Logical.FromText("true") then "CORRIGIR_R$" else 
+
+if Text.Length(Text.AfterDelimiter([#" SUPLEMENTADO "], ",")) = 2 then "OK" else if Text.Length(Text.AfterDelimiter([#" SUPLEMENTADO "], ",")) = 0 then "OK" else "CORRIGIR_DEC"),
+    #"Personalização Adicionada4" = Table.AddColumn(#"Personalização Adicionada3", "TRANSPORTO_COD", each if Text.Contains([TRANSPOSTO], "R$") = Logical.FromText("true") then "CORRIGIR_R$" else 
+
+if Text.Length(Text.AfterDelimiter([TRANSPOSTO], ",")) = 2 then "OK" else if Text.Length(Text.AfterDelimiter([TRANSPOSTO], ",")) = 0 then "OK" else "CORRIGIR_DEC"),
+    #"Personalização Adicionada5" = Table.AddColumn(#"Personalização Adicionada4", "REALIZADO_COR", each if Text.Contains([#"   REALIZADO   "], "R$") = Logical.FromText("true") then "CORRIGIR_R$" else 
+
+if Text.Length(Text.AfterDelimiter([#"   REALIZADO   "], ",")) <= 15 then "OK" else "CORRIGIR_DEC"),
+    #"Índice Adicionado" = Table.AddIndexColumn(#"Personalização Adicionada5", "Índice", 2, 1, Int64.Type),
+    #"Colunas Reordenadas" = Table.ReorderColumns(#"Índice Adicionado",{"Índice", "COD_CONTA", "DESC_CONTA", "ORCADO", "RETIFICADO", " SUPLEMENTADO ", "TRANSPOSTO", "   REALIZADO   ", "OBS", "COD_CONTA_COR", "ORCADO_COR", "RETIFICADO_COR", "SUPLEMENTADO_COR", "TRANSPORTO_COD", "REALIZADO_COR"}),
+
+    #"Outras Colunas Não Dinâmicas" = Table.UnpivotOtherColumns(#"Colunas Reordenadas", {"Índice", "COD_CONTA", "DESC_CONTA", "ORCADO", "RETIFICADO", " SUPLEMENTADO ", "TRANSPOSTO", "   REALIZADO   ", "OBS"}, "Atributo", "Valor")
+in
+    #"Outras Colunas Não Dinâmicas"
