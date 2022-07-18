@@ -1,0 +1,22 @@
+let
+    Fonte = SharePoint.Files(CaminhoSite, [ApiVersion = 15]),
+    #"Linhas Filtradas" = Table.SelectRows(Fonte, each [Folder Path] = CaminhoArquivo),
+    #"PLANO_CARGOS xlsx_https://sescsp sharepoint com/sites/MCI-MonitoramentoeControledeIndicadores/Shared Documents/TCU/" = #"Linhas Filtradas"{[Name="PLANO_CARGOS.xlsx",#"Folder Path"="https://sescsp.sharepoint.com/sites/MCI-MonitoramentoeControledeIndicadores/Shared Documents/TCU/"]}[Content],
+    #"Pasta de Trabalho Importada do Excel" = Excel.Workbook(#"PLANO_CARGOS xlsx_https://sescsp sharepoint com/sites/MCI-MonitoramentoeControledeIndicadores/Shared Documents/TCU/"),
+    Tabela1_Table = #"Pasta de Trabalho Importada do Excel"{[Item="Tabela1",Kind="Table"]}[Data],
+    #"Tipo Alterado" = Table.TransformColumnTypes(Tabela1_Table,{{"CARGO", type text}, {"SALARIO_MIN", type number}, {"SALARIO_MAX", type number}, {"HORA_MENSAL", Int64.Type}}),
+    #"Tipo Alterado1" = Table.TransformColumnTypes(#"Tipo Alterado",{{"SALARIO_MIN", type text}, {"SALARIO_MAX", type text}}),
+    #"Personalização Adicionada1" = Table.AddColumn(#"Tipo Alterado1", "SALARIO_MIN_COR", each if Text.Contains([SALARIO_MIN], "R$") = Logical.FromText("true") then "CORRIGIR_R$" else 
+
+if Text.Length(Text.AfterDelimiter([SALARIO_MIN], ",")) = 2 then "OK" else if Text.Length(Text.AfterDelimiter([SALARIO_MIN], ",")) = 0 then "OK" else "CORRIGIR"),
+    #"Personalização Adicionada2" = Table.AddColumn(#"Personalização Adicionada1", "SALARIO_MAX_COR", each if Number.FromText([SALARIO_MAX]) < Number.FromText([SALARIO_MIN]) then "CORRIGIR MIN E MAX" else if Text.Contains([SALARIO_MAX], "R$") = Logical.FromText("true") then "CORRIGIR_R$" else 
+
+if Text.Length(Text.AfterDelimiter([SALARIO_MAX], ",")) = 2 then "OK" else if Text.Length(Text.AfterDelimiter([SALARIO_MAX], ",")) = 0 then "OK" else "CORRIGIR"),
+    #"Tipo Alterado2" = Table.TransformColumnTypes(#"Personalização Adicionada2",{{"HORA_MENSAL", type text}}),
+    #"Personalização Adicionada3" = Table.AddColumn(#"Tipo Alterado2", "HORA_MENSAL_COR", each if Number.FromText([HORA_MENSAL]) = 1 or Number.FromText([HORA_MENSAL]) = 2 then "OK" else "CORRIGIR"),
+    #"Índice Adicionado" = Table.AddIndexColumn(#"Personalização Adicionada3", "Índice", 2, 1, Int64.Type),
+    #"Colunas Reordenadas" = Table.ReorderColumns(#"Índice Adicionado",{"Índice", "CARGO", "SALARIO_MIN", "SALARIO_MAX", "HORA_MENSAL", "SALARIO_MIN_COR", "SALARIO_MAX_COR", "HORA_MENSAL_COR"}),
+
+    #"Outras Colunas Não Dinâmicas" = Table.UnpivotOtherColumns(#"Colunas Reordenadas", {"Índice", "CARGO", "SALARIO_MIN", "SALARIO_MAX", "HORA_MENSAL"}, "Atributo", "Valor")
+in
+    #"Outras Colunas Não Dinâmicas"
