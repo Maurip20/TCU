@@ -1,0 +1,34 @@
+let
+    Fonte = SharePoint.Files(CaminhoSite, [ApiVersion = 15]),
+    #"Linhas Filtradas" = Table.SelectRows(Fonte, each [Folder Path] = CaminhoArquivo),
+    #"TRANSFERENCIAS xlsx_https://sescsp sharepoint com/sites/MCI-MonitoramentoeControledeIndicadores/Shared Documents/TCU/" = #"Linhas Filtradas"{[Name="TRANSFERENCIAS.xlsx",#"Folder Path"="https://sescsp.sharepoint.com/sites/MCI-MonitoramentoeControledeIndicadores/Shared Documents/TCU/"]}[Content],
+    #"Pasta de Trabalho Importada do Excel" = Excel.Workbook(#"TRANSFERENCIAS xlsx_https://sescsp sharepoint com/sites/MCI-MonitoramentoeControledeIndicadores/Shared Documents/TCU/"),
+    Tabela1_Table = #"Pasta de Trabalho Importada do Excel"{[Item="Tabela1",Kind="Table"]}[Data],
+    #"Tipo Alterado1" = Table.TransformColumnTypes(Tabela1_Table,{{"TIPO_TRANSFERENCIA", type text}, {"TRANSF_ENT_PATRONAL", type text},  {"VL_PACTUADO", type text}, {"VL_TRANSFERIDO", type text}, {"CNPJ", type text}, {"CPF", type text}, {"PREST_CONTAS", type text}, {"DT_FIRMAMENTO", type text}, {"COD_CONTA", type text}}),
+    #"Personalização Adicionada" = Table.AddColumn(#"Tipo Alterado1", "TIPO_TRANSFERENCIA_COR", each if Number.FromText([TIPO_TRANSFERENCIA]) = 1 or Number.FromText([TIPO_TRANSFERENCIA]) = 2 or Number.FromText([TIPO_TRANSFERENCIA]) = 3 or [TIPO_TRANSFERENCIA] = 4 or Number.FromText([TIPO_TRANSFERENCIA]) = 5  or Number.FromText([TIPO_TRANSFERENCIA]) = 6 or Number.FromText([TIPO_TRANSFERENCIA]) = 7 or Number.FromText([TIPO_TRANSFERENCIA]) = 8 
+then "OK" else "CORRIGR"),
+    #"Personalização Adicionada1" = Table.AddColumn(#"Personalização Adicionada", "TRANSF_ENT_PATRONAL_COR", each if Number.FromText([TRANSF_ENT_PATRONAL]) = 1 or Number.FromText([TRANSF_ENT_PATRONAL]) = 2 or Number.FromText([TRANSF_ENT_PATRONAL]) = 3 
+then "OK" else "CORRIGIR"),
+    #"Personalização Adicionada2" = Table.AddColumn(#"Personalização Adicionada1", "COD_CONTA_COR", each if List.Count(Text.Split([COD_CONTA], ".")) = 6 then "OK" else "CORRIGIR"),
+    #"Personalização Adicionada3" = Table.AddColumn(#"Personalização Adicionada2", "DT_FIRMAMENTO_COR", each if Date.Day(Date.From([DT_FIRMAMENTO])) > 31 then "CORRIGIR_DIA" else if Date.Month(Date.From([DT_FIRMAMENTO])) > 12 then "CORRIGIR_MES" else if  Text.Length(Text.AfterDelimiter([DT_FIRMAMENTO],"/",1)) > 4 then "CORRIGIR_ANO" else if Date.Year(Date.From([DT_FIRMAMENTO])) <>  Date.Year(DateTime.LocalNow()) then "CORRIGIR" else "OK"),
+    #"Personalização Adicionada4" = Table.AddColumn(#"Personalização Adicionada3", "QTDE_PARCELAS_TOTAL_COR", each if Text.Contains(Text.From([QTDE_PARCELAS_TOTAL]), ",") then "CORRIGIR" else "OK"),
+    #"Personalização Adicionada5" = Table.AddColumn(#"Personalização Adicionada4", "QTDE_PARCELAS_TRANSF_COR", each if Text.Contains(Text.From([QTDE_PARCELAS_TRANSF]), ",") then "CORRIGIR" else "OK"),
+    #"Personalização Adicionada9" = Table.AddColumn(#"Personalização Adicionada5", "VL_PACTUADO_R$_COR", each if Text.Contains([VL_PACTUADO], "R$") = Logical.FromText("true") then "CORRIGIR_R$" else 
+
+if Text.Length(Text.AfterDelimiter([VL_PACTUADO], ",")) <= 15 then "OK" else if Text.Length(Text.AfterDelimiter([VL_PACTUADO], ",")) = 0 then "OK" else "CORRIGIR_DEC"),
+    #"Personalização Adicionada10" = Table.AddColumn(#"Personalização Adicionada9", "VL_TRANSFERIDO_COR", each if Text.Contains([VL_TRANSFERIDO], "R$") = Logical.FromText("true") then "CORRIGIR_R$" else 
+
+if Text.Length(Text.AfterDelimiter([VL_TRANSFERIDO], ",")) <= 15 then "OK" else if Text.Length(Text.AfterDelimiter([VL_TRANSFERIDO], ",")) = 0 then "OK" else "CORRIGIR_DEC"),
+    #"Personalização Adicionada6" = Table.AddColumn(#"Personalização Adicionada10", "OBS_COR", each if Number.FromText([TIPO_TRANSFERENCIA]) = 8 and Text.Length([OBS]) = 0 then "CORRIGIR" else "OK"),
+    #"Valor Substituído" = Table.ReplaceValue(#"Personalização Adicionada6",null,"",Replacer.ReplaceValue,{"CNPJ", "CPF"}),
+    #"Personalização Adicionada7" = Table.AddColumn(#"Valor Substituído", "CNPJ_COR", each if Text.Contains([CNPJ], ".") or Text.Contains([CNPJ], "/") then "CORRIGIR" else "OK"),
+    #"Personalização Adicionada8" = Table.AddColumn(#"Personalização Adicionada7", "CPF_COR", each if Text.Contains([CPF], ".") or Text.Contains([CPF], "/") or Text.Contains([CPF], "-") then "CORRIGIR" else "OK"),
+    #"Colunas Reordenadas" = Table.ReorderColumns(#"Personalização Adicionada8",{"ID_INSTRUMENTO", "TIPO_TRANSFERENCIA", "DESC_OBJETO", "TRANSF_ENT_PATRONAL", "PROCESSO", "COD_CONTA", "DESC_CONTA", "DT_FIRMAMENTO", "QTDE_PARCELAS_TOTAL", "QTDE_PARCELAS_TRANSF", "VL_PACTUADO", "VL_TRANSFERIDO", "PREST_CONTAS", "NOME_BENEFICIARIO", "CNPJ", "CPF", "OBS", "TIPO_TRANSFERENCIA_COR", "TRANSF_ENT_PATRONAL_COR", "COD_CONTA_COR", "DT_FIRMAMENTO_COR", "QTDE_PARCELAS_TOTAL_COR", "QTDE_PARCELAS_TRANSF_COR", "CNPJ_COR", "CPF_COR", "OBS_COR"}),
+    #"Personalização Adicionada11" = Table.AddColumn(#"Colunas Reordenadas", "PREST_CONTAS_COR", each if Number.FromText([PREST_CONTAS]) = 1 or Number.FromText([PREST_CONTAS]) = 2 or Number.FromText([PREST_CONTAS]) = 3 
+then "OK" else "CORRIGIR"),
+    #"Colunas Reordenadas1" = Table.ReorderColumns(#"Personalização Adicionada11",{"ID_INSTRUMENTO", "TIPO_TRANSFERENCIA", "DESC_OBJETO", "TRANSF_ENT_PATRONAL", "PROCESSO", "COD_CONTA", "DESC_CONTA", "DT_FIRMAMENTO", "QTDE_PARCELAS_TOTAL", "QTDE_PARCELAS_TRANSF", "VL_PACTUADO", "VL_TRANSFERIDO", "PREST_CONTAS", "NOME_BENEFICIARIO", "CNPJ", "CPF", "OBS", "TIPO_TRANSFERENCIA_COR", "TRANSF_ENT_PATRONAL_COR", "COD_CONTA_COR", "DT_FIRMAMENTO_COR", "QTDE_PARCELAS_TOTAL_COR", "QTDE_PARCELAS_TRANSF_COR", "VL_PACTUADO_R$_COR", "VL_TRANSFERIDO_COR", "PREST_CONTAS_COR", "CNPJ_COR", "CPF_COR", "OBS_COR"}),
+    #"Índice Adicionado" = Table.AddIndexColumn(#"Colunas Reordenadas1", "Índice", 2, 1, Int64.Type),
+    #"Colunas Reordenadas2" = Table.ReorderColumns(#"Índice Adicionado",{"Índice", "ID_INSTRUMENTO", "TIPO_TRANSFERENCIA", "DESC_OBJETO", "TRANSF_ENT_PATRONAL", "PROCESSO", "COD_CONTA", "DESC_CONTA", "DT_FIRMAMENTO", "QTDE_PARCELAS_TOTAL", "QTDE_PARCELAS_TRANSF", "VL_PACTUADO", "VL_TRANSFERIDO", "PREST_CONTAS", "NOME_BENEFICIARIO", "CNPJ", "CPF", "OBS", "TIPO_TRANSFERENCIA_COR", "TRANSF_ENT_PATRONAL_COR", "COD_CONTA_COR", "DT_FIRMAMENTO_COR", "QTDE_PARCELAS_TOTAL_COR", "QTDE_PARCELAS_TRANSF_COR", "VL_PACTUADO_R$_COR", "VL_TRANSFERIDO_COR", "PREST_CONTAS_COR", "CNPJ_COR", "CPF_COR", "OBS_COR"}),
+    FiltrandoNulo = Table.SelectRows(#"Colunas Reordenadas2", each [ID_INSTRUMENTO] <> null and [TIPO_TRANSFERENCIA] <> null)
+in
+    FiltrandoNulo
