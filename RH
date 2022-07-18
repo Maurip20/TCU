@@ -1,0 +1,51 @@
+let
+    Fonte = SharePoint.Files(CaminhoSite, [ApiVersion = 15]),
+    #"Linhas Filtradas" = Table.SelectRows(Fonte, each [Folder Path] = CaminhoArquivo),
+    #"RH xlsx_https://sescsp sharepoint com/sites/MCI-MonitoramentoeControledeIndicadores/Shared Documents/TCU/" = #"Linhas Filtradas"{[Name="RH.xlsx",#"Folder Path"="https://sescsp.sharepoint.com/sites/MCI-MonitoramentoeControledeIndicadores/Shared Documents/TCU/"]}[Content],
+    #"Pasta de Trabalho Importada do Excel" = Excel.Workbook(#"RH xlsx_https://sescsp sharepoint com/sites/MCI-MonitoramentoeControledeIndicadores/Shared Documents/TCU/"),
+    Tabela1_Table = #"Pasta de Trabalho Importada do Excel"{[Item="Tabela1",Kind="Table"]}[Data],
+    #"Tipo Alterado" = Table.TransformColumnTypes(Tabela1_Table,{{"CPF", type text}, {"NOME", type text}, {"DT_NASCIMENTO", type date}, {"CARGO", type text}, {"DIRIGENTE", Int64.Type}, {"TIPO_CONTRATO", Int64.Type}, {"LOTACAO", Int64.Type}, {"UNIDADE_TRABALHO", type text}, {"MUNICIPIO", type text}, {"UF", type text}, {"REMUNERACAO_MENSAL", Int64.Type}, {"CARGA_HORARIA", Int64.Type}, {"DT_ADMISSAO", type date}, {"DT_DESLIGAMENTO", type date}, {"SITUACAO", Int64.Type}, {"OBS", type text}}),
+    #"Valor Substituído" = Table.ReplaceValue(#"Tipo Alterado",null,"",Replacer.ReplaceValue,{"CPF"}),
+    #"Personalização Adicionada" = Table.AddColumn(#"Valor Substituído", "CPF_COR", each if Text.Contains([CPF], ".") or Text.Contains([CPF], "/") or Text.Contains([CPF], "-") then "CORRIGIR" else "OK"),
+    #"Personalização Adicionada1" = Table.AddColumn(#"Personalização Adicionada", "DT_NASCIMENTO_COR", each if Date.Day([DT_NASCIMENTO]) > 31 then "CORRIGIR_DIA" else if Date.Month([DT_NASCIMENTO]) > 12 then "CORRIGIR_MES" else if Text.Length(Number.ToText(Date.Year([DT_NASCIMENTO]))) >= 4 then "OK" else "CORRIGIR_ANO"),
+    #"Personalização Adicionada2" = Table.AddColumn(#"Personalização Adicionada1", "DIRIGENTE_COR", each if [DIRIGENTE] = 1 or [DIRIGENTE] = 3 or [DIRIGENTE] = 4 or [DIRIGENTE] = 5 or [DIRIGENTE] = 6  then "OK" else if [DIRIGENTE] = 2 and Text.Start([CARGO], 7) =  "GERENTE" then "OK" else if [DIRIGENTE] = 2 and Text.Start([CARGO], 17) =  "CONSULTOR TECNICO" then "OK" else "CORRIGIR"),
+    #"Personalização Adicionada3" = Table.AddColumn(#"Personalização Adicionada2", "TIPO_CONTRATO_COR", each if [TIPO_CONTRATO] = 1 or[TIPO_CONTRATO] = 2 or[TIPO_CONTRATO] = 3 or [TIPO_CONTRATO] = 4 or [TIPO_CONTRATO] = 5 then "OK" else "CORRIGIR"),
+    #"Personalização Adicionada4" = Table.AddColumn(#"Personalização Adicionada3", "LOTACAO_COR", each if [LOTACAO] = 1 or [LOTACAO] = 2 or [LOTACAO] = 3 or [LOTACAO] = 4 or [LOTACAO] = 5 then "OK" else "CORRIGIR"),
+    #"Personalização Adicionada5" = Table.AddColumn(#"Personalização Adicionada4", "UF_COR", each if Text.Length([UF]) > 2 then "CORRIGIR" else "OK"),
+    #"Personalização Adicionada6" = Table.AddColumn(#"Personalização Adicionada5", "REMUNERACAO_MENSAL_COR", each if [REMUNERACAO_MENSAL] = null then "OK" else 
+if [DIRIGENTE] = 3 and Text.Length(Number.ToText([REMUNERACAO_MENSAL])) > 0 then "CORRIGIR1" 
+
+else if [DIRIGENTE] = 4 and Text.Length(Number.ToText([REMUNERACAO_MENSAL])) then "CORRIGIR2" 
+
+else if [DIRIGENTE] = 5 and Text.Length(Number.ToText([REMUNERACAO_MENSAL])) then "CORRIGIR3" else 
+
+if Text.Contains(Number.ToText([REMUNERACAO_MENSAL]), "R$") = Logical.FromText("true") then "CORRIGIR_R$" else 
+
+if Text.Length(Text.AfterDelimiter(Number.ToText([REMUNERACAO_MENSAL]), ",")) = 2 or Text.Length(Text.AfterDelimiter(Number.ToText([REMUNERACAO_MENSAL]), ",")) = 0 then "OK2"  else "CORRIGIR_DEC"),
+    #"Personalização Adicionada7" = Table.AddColumn(#"Personalização Adicionada6", "CARGA_HORARIA_COR", each if [CARGA_HORARIA] = null then "OK1" else 
+if [DIRIGENTE] = 3 and Text.Length(Number.ToText([CARGA_HORARIA])) > 0 then "CORRIGIR" else 
+
+if [DIRIGENTE] = 4 and Text.Length(Number.ToText([CARGA_HORARIA])) > 0 then "CORRIGIR" else 
+
+if [DIRIGENTE] = 5 and Text.Length(Number.ToText([CARGA_HORARIA])) > 0 then "CORRIGIR" else 
+
+if [CARGA_HORARIA] > 44 then "CORRIGIR" else "OK"),
+    #"Personalização Adicionada8" = Table.AddColumn(#"Personalização Adicionada7", "DT_ADMISSAO_COR", each if Date.Day([DT_ADMISSAO]) > 31 then "CORRIGIR_DIA" else 
+
+if Date.Month([DT_ADMISSAO]) > 12 then "CORRIGIR_MES" else 
+
+if Text.Length(Number.ToText(Date.Year([DT_ADMISSAO]))) >= 4 then "OK" else "CORRIGIR_ANO"),
+    #"Personalização Adicionada9" = Table.AddColumn(#"Personalização Adicionada8", "DT_DESLIGAMENTO_COR", each if [DT_DESLIGAMENTO] = null then "OK" else if [DT_DESLIGAMENTO] < [DT_ADMISSAO] then "CORRIGIR_DATAS" else 
+
+if Date.Day([DT_DESLIGAMENTO]) > 31 then "CORRIGIR_DIA" else 
+
+if Date.Month([DT_DESLIGAMENTO]) > 12 then "CORRIGIR_MES" else 
+
+if Text.Length(Number.ToText(Date.Year([DT_DESLIGAMENTO]))) >= 4 then "OK" else "CORRIGIR_ANO"),
+    #"Personalização Adicionada10" = Table.AddColumn(#"Personalização Adicionada9", "SITUACAO_COR", each if [SITUACAO] = 1 or [SITUACAO] = 2 or [SITUACAO] = 3 or [SITUACAO] = 4 or [SITUACAO] = 5 or [SITUACAO] = 6 or [SITUACAO] = 7 then "OK" else "CORRIGIR"),
+    #"Personalização Adicionada11" = Table.AddColumn(#"Personalização Adicionada10", "OBS_COR", each if [TIPO_CONTRATO] = 5 and Text.Length([OBS]) = 0 then "CORRIGIR" else "OK"),
+    #"Índice Adicionado" = Table.AddIndexColumn(#"Personalização Adicionada11", "Índice", 2, 1, Int64.Type),
+    #"Colunas Reordenadas" = Table.ReorderColumns(#"Índice Adicionado",{"Índice", "CPF", "NOME", "DT_NASCIMENTO", "CARGO", "DIRIGENTE", "TIPO_CONTRATO", "LOTACAO", "UNIDADE_TRABALHO", "MUNICIPIO", "UF", "REMUNERACAO_MENSAL", "CARGA_HORARIA", "DT_ADMISSAO", "DT_DESLIGAMENTO", "SITUACAO", "OBS", "CPF_COR", "DT_NASCIMENTO_COR", "DIRIGENTE_COR", "TIPO_CONTRATO_COR", "LOTACAO_COR", "UF_COR", "REMUNERACAO_MENSAL_COR", "CARGA_HORARIA_COR", "DT_ADMISSAO_COR", "DT_DESLIGAMENTO_COR", "SITUACAO_COR", "OBS_COR"}),
+    #"Outras Colunas Não Dinâmicas" = Table.UnpivotOtherColumns(#"Colunas Reordenadas", {"OBS", "SITUACAO", "DT_DESLIGAMENTO", "DT_ADMISSAO", "CARGA_HORARIA", "REMUNERACAO_MENSAL", "UF", "MUNICIPIO", "UNIDADE_TRABALHO", "LOTACAO", "TIPO_CONTRATO", "DIRIGENTE", "CARGO", "DT_NASCIMENTO", "NOME", "CPF", "Índice"}, "Atributo", "Valor")
+in
+    #"Outras Colunas Não Dinâmicas"
