@@ -1,0 +1,27 @@
+let
+    Fonte = SharePoint.Files(CaminhoSite, [ApiVersion = 15]),
+    #"Linhas Filtradas" = Table.SelectRows(Fonte, each [Folder Path] = CaminhoArquivo),
+    #"2022_LICITANTES xlsx_https://sescsp sharepoint com/sites/MCI-MonitoramentoeControledeIndicadores/Shared Documents/TCU/" = #"Linhas Filtradas"{[Name="2022_LICITANTES.xlsx",#"Folder Path"="https://sescsp.sharepoint.com/sites/MCI-MonitoramentoeControledeIndicadores/Shared Documents/TCU/"]}[Content],
+    #"Pasta de Trabalho Importada do Excel" = Excel.Workbook(#"2022_LICITANTES xlsx_https://sescsp sharepoint com/sites/MCI-MonitoramentoeControledeIndicadores/Shared Documents/TCU/"),
+    #"2022_LICITANTES_Sheet" = #"Pasta de Trabalho Importada do Excel"{[Item="2022_LICITANTES",Kind="Sheet"]}[Data],
+    #"Cabeçalhos Promovidos" = Table.PromoteHeaders(#"2022_LICITANTES_Sheet", [PromoteAllScalars=true]),
+    #"Tipo Alterado" = Table.TransformColumnTypes(#"Cabeçalhos Promovidos",{{"CNPJ", type text}, {"ANO_EDITAL", type text}, {"EDITAL", type text}}),
+    #"Personalização Adicionada" = Table.AddColumn(#"Tipo Alterado", "ANO_EDITAL_COR", each if Text.Length([ANO_EDITAL]) > 4 then "CORRIGIR" else "OK"),
+    #"Personalização Adicionada1" = Table.AddColumn(#"Personalização Adicionada", "NAT_OBJETO_COR", each if [NAT_OBJETO] = 1 then "OK" else if [NAT_OBJETO] = 2 then "OK" else if [NAT_OBJETO] = 3 then "OK" else "CORRIGIR"),
+    #"Personalização Adicionada2" = Table.AddColumn(#"Personalização Adicionada1", "EDITAL_COR", each if Text.AfterDelimiter([EDITAL],"/") = [ANO_EDITAL] then "OK" else if Text.Start(Text.AfterDelimiter([EDITAL], " "),4) = [ANO_EDITAL] then "OK" else "CORRIGIR"),
+    #"Personalização Adicionada3" = Table.AddColumn(#"Personalização Adicionada2", "CAT_OBJETO_COR", each if [CAT_OBJETO] = 1 then "OK - OBS" else if [CAT_OBJETO] = 2 then "OK" else if [CAT_OBJETO] = 3 then "OK" else if [CAT_OBJETO] = 4 then "OK" else if [CAT_OBJETO] = 5 then "OK" else if [CAT_OBJETO] = 6 then "OK" else if [CAT_OBJETO] = 7 then "OK" else if [CAT_OBJETO] = 8 then "OK" else if [CAT_OBJETO] = 9 then "OK" else if [CAT_OBJETO] = 10 then "OK" else if [CAT_OBJETO] = 11 then "OK" else if [CAT_OBJETO] = 12 then "OK" else if [CAT_OBJETO] = 13 then "OK" else if [CAT_OBJETO] = 14 then "OK" else if [CAT_OBJETO] = 15 then "OK" else if [CAT_OBJETO] = 16 then "OK" else if [CAT_OBJETO] = 17 then "OK" else if [CAT_OBJETO] = 18 then "OK" else if [CAT_OBJETO] = 19 then "OK" else if [CAT_OBJETO] = 20 then "OK" else if [CAT_OBJETO] = 21 then "OK" else if [CAT_OBJETO] = 22 then "OK" else if [CAT_OBJETO] = 23 then "OK" else if [CAT_OBJETO] = 24 then "OK" else if [CAT_OBJETO] = 25 then "OK" else if [CAT_OBJETO] = 26 then "OK" else if [CAT_OBJETO] = 27 then "OK" else if [CAT_OBJETO] = 28 then "OK" else if [CAT_OBJETO] = 29 then "OK" else if [CAT_OBJETO] = 30 then "OK" else if [CAT_OBJETO] = 31 then "OK" else if [CAT_OBJETO] = 32 then "OK" else if [CAT_OBJETO] = 33 then "OK" else if [CAT_OBJETO] = 34 then "OK" else if [CAT_OBJETO] = 35 then "OK" else if [CAT_OBJETO] = 36 then "OK" else if [CAT_OBJETO] = 37 then "OK" else if [CAT_OBJETO] = 38 then "OK" else if [CAT_OBJETO] = 39 then "OK" else if [CAT_OBJETO] = 40 then "OK - OBS" else "CORRIGIR"),
+    #"Valor Substituído1" = Table.ReplaceValue(#"Personalização Adicionada3",null,"",Replacer.ReplaceValue,{"CNPJ"}),
+    #"Personalização Adicionada4" = Table.AddColumn(#"Valor Substituído1", "CNPJ_COR", each if Text.Contains([CNPJ], ".") or Text.Contains([CNPJ], "/") then "CORRIGIR" else "OK"),
+    #"Tipo Alterado1" = Table.TransformColumnTypes(#"Personalização Adicionada4",{{"CPF", type text}}),
+    #"Valor Substituído" = Table.ReplaceValue(#"Tipo Alterado1",null,"",Replacer.ReplaceValue,{"CPF"}),
+    #"Personalização Adicionada6" = Table.AddColumn(#"Valor Substituído", "CPF_COR2", each if Text.Contains([CPF], ".") or Text.Contains([CPF], "-") then "CORRIGIR" else "OK"),
+    #"Colunas Renomeadas" = Table.RenameColumns(#"Personalização Adicionada6",{{"CPF_COR2", "CPF_COR"}}),
+    #"Tipo Alterado5" = Table.TransformColumnTypes(#"Colunas Renomeadas",{{"VL_PROPOSTA", type text}}),
+    #"Personalização Adicionada9" = Table.AddColumn(#"Tipo Alterado5", "VL_PROPOSTA_COR", each if Text.Contains([VL_PROPOSTA], "R$") = Logical.FromText("true") then "CORRIGIR_R$" else 
+
+if Text.Length(Text.AfterDelimiter([VL_PROPOSTA], ",")) >= 2 or Text.Length(Text.AfterDelimiter([VL_PROPOSTA], ",")) = 1 then "OK" else if Text.Length(Text.AfterDelimiter([VL_PROPOSTA], ",")) = 0 then "OK" else "CORRIGIR_DEC"),
+    #"Personalização Adicionada8" = Table.AddColumn(#"Personalização Adicionada9", "OBS_COR", each if [CAT_OBJETO] <> 1 or [CAT_OBJETO] <> 40 then "OK" else if Text.Length([OBS]) < 0 then "CORRIGIR" else "OK"),
+    #"Índice Adicionado" = Table.AddIndexColumn(#"Personalização Adicionada8", "Índice", 2, 1, Int64.Type),
+    #"Colunas Reordenadas" = Table.ReorderColumns(#"Índice Adicionado",{"Índice", "ANO_EDITAL", "EDITAL", "NAT_OBJETO", "DESC_OBJETO", "CAT_OBJETO", "NOME_LICITANTE", "CNPJ", "CPF", "VL_PROPOSTA", "OBS", "ANO_EDITAL_COR", "NAT_OBJETO_COR", "EDITAL_COR", "CAT_OBJETO_COR", "CNPJ_COR", "CPF_COR", "VL_PROPOSTA_COR", "OBS_COR"})
+in
+    #"Colunas Reordenadas"
