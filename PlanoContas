@@ -1,0 +1,13 @@
+let
+    Fonte = SharePoint.Files(CaminhoSite, [ApiVersion = 15]),
+    #"Linhas Filtradas" = Table.SelectRows(Fonte, each [Folder Path] = CaminhoArquivo),
+    #"PLANO_CONTAS xlsx_https://sescsp sharepoint com/sites/MCI-MonitoramentoeControledeIndicadores/Shared Documents/TCU/" = #"Linhas Filtradas"{[Name="PLANO_CONTAS.xlsx",#"Folder Path"="https://sescsp.sharepoint.com/sites/MCI-MonitoramentoeControledeIndicadores/Shared Documents/TCU/"]}[Content],
+    #"Pasta de Trabalho Importada do Excel" = Excel.Workbook(#"PLANO_CONTAS xlsx_https://sescsp sharepoint com/sites/MCI-MonitoramentoeControledeIndicadores/Shared Documents/TCU/"),
+    Tabela1_Table = #"Pasta de Trabalho Importada do Excel"{[Item="Tabela1",Kind="Table"]}[Data],
+    #"Tipo Alterado" = Table.TransformColumnTypes(Tabela1_Table,{{"COD_CONTA", type text}}),
+    #"Valor Substituído" = Table.ReplaceValue(#"Tipo Alterado",null,"",Replacer.ReplaceValue,{"COD_CONTA"}),
+    #"Personalização Adicionada" = Table.AddColumn(#"Valor Substituído", "COD_CONTA_COR", each if Text.Length([COD_CONTA]) = 0 then "CORRIGIR" else if List.Count(Text.Split([COD_CONTA], ".")) <= 7 then "OK" else "CORRIGIR"),
+    #"Índice Adicionado" = Table.AddIndexColumn(#"Personalização Adicionada", "Índice", 2, 1, Int64.Type),
+    #"Colunas Reordenadas" = Table.ReorderColumns(#"Índice Adicionado",{"Índice", "COD_CONTA", "DESC_CONTA", "COD_CONTA_COR"})
+in
+    #"Colunas Reordenadas"
